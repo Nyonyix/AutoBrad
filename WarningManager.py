@@ -1,12 +1,16 @@
 from datetime import datetime, timezone
 import requests
+import logging
+import Nyon_Util
 
 class Warning:
     """
     This is an object to contain and deal with warning data.
     """
-    
+
     def __init__(self, data: dict) -> None:
+
+        logger = logging.getLogger(Nyon_Util.get_custom_logger_name())
         
         self._debug_raw_data = data["debug_raw_data"]
         self.id: str = data["id"]
@@ -55,17 +59,24 @@ class WarningManager:
     """
 
     MONITORED_WARNING_TYPES = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning']
-    # MONITORED_WARNING_TYPES.append('Special Weather Statement')
 
     def __init__(self, url: str = "https://api.weather.gov/alerts/active", user_agent: dict = {"User-Agent": "Name: AutoBrad, Desc: Discord Bot, Contact: quontex@hotmail.com"}) -> None:
         
+        self.logger = logging.getLogger(Nyon_Util.get_custom_logger_name())
+
         self.api_url: str = url
         self.user_agent: str = user_agent
         self.warning_set: set[Warning] = {Warning(self._extract_relevant_data(alert)) for alert in self._poll_warning_data()}
 
     def _poll_warning_data(self) -> list[dict]:
 
-        response = requests.get(self.api_url, headers=self.user_agent)
+        try:
+            response = requests.get(self.api_url, headers=self.user_agent)
+            self.logger.info(f"Fetching Warning Data")
+        except TimeoutError:
+            self.logger.error(f"API Timeout")
+            return []
+        self.logger.info(f"Successfully fetched warning data")
         data = response.json()
         filtered_alerts = [alert for alert in data['features'] if alert['properties']['event'] in self.MONITORED_WARNING_TYPES]
 

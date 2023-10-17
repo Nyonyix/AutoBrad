@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import inspect
 
 def expires_in(target_datetime):
     # Calculate the time difference
@@ -20,3 +21,24 @@ def expires_in(target_datetime):
 
     # Combine the parts into the final string
     return " ".join(parts)
+
+def get_custom_logger_name():
+    # Get the current frame
+    frame = inspect.currentframe()
+
+    # Go back to the calling frame
+    frame = frame.f_back
+
+    # Extract information
+    module_name = frame.f_globals["__name__"]
+    class_name = frame.f_locals.get("self", None).__class__.__name__ if "self" in frame.f_locals else None
+    function_name = frame.f_code.co_name
+
+    # Construct the logger name
+    logger_name = f"AutoBrad.{module_name}"
+    if class_name:
+        logger_name += f".{class_name}"
+    if function_name != "<module>":  # Avoid appending for module-level calls
+        logger_name += f".{function_name}"
+
+    return logger_name

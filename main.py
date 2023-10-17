@@ -2,6 +2,7 @@ import WarningManager
 import Nyon_Util
 
 import os
+import logging
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 
@@ -18,20 +19,29 @@ wm = WarningManager.WarningManager(NWS_API)
 
 client = discord.Client(intents=discord.Intents.default())
 
+logging.basicConfig(level=logging.INFO)
+discord_logger = logging.getLogger("discord")
+discord_logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
+discord_logger.addHandler(handler)
+
 @tasks.loop(minutes=1)
 async def main_loop(thunderstorm_channel: discord.TextChannel, tornado_channel: discord.TextChannel, flood_channel: discord.TextChannel):
 
     warning_counts = {}
     sent_warnings = set()
+
+    logger = logging.getLogger(Nyon_Util.get_custom_logger_name())
     
     wm.update()
 
     if len(wm.warning_set) < 1:
-        print(f"No warnings present")
+        logger.info(f"No warnings present")
         return
 
-    print(f"Warnings Updated")
-    print(f"Total Warnings: {len(wm.warning_set)}")
+    logger.info(f"Warnings Updated")
+    logger.info(f"Total Warnings: {len(wm.warning_set)}")
 
     await thunderstorm_channel.purge()
     await tornado_channel.purge()
@@ -69,13 +79,14 @@ async def main_loop(thunderstorm_channel: discord.TextChannel, tornado_channel: 
             warning_counts[warning.event_type] = 1
     
     for k, v in warning_counts.items():
-        print(f"{k}:{v}")
-    print("\n")
+        logger.info(f"{k}:{v}")
 
 @client.event
 async def on_ready():
 
-    print(f"Bot loaded in as {client.user}")
+    logger = logging.getLogger(Nyon_Util.get_custom_logger_name())
+
+    logger.info(f"Bot loaded in as {client.user}")
     await client.change_presence(status=discord.Status.online, activity=discord.CustomActivity(name="Sniffing for warnings"))
 
     thunderstorm_channel: discord.TextChannel
@@ -86,15 +97,9 @@ async def on_ready():
         if channel.type == discord.ChannelType.text:
             if channel.name == "autobrad-thunderstorm":
                 thunderstorm_channel = channel
-
-    for channel in client.get_all_channels():
-        if channel.type == discord.ChannelType.text:
-            if channel.name == "autobrad-tornado":
+            elif channel.name == "autobrad-tornado":
                 tornado_channel = channel
-
-    for channel in client.get_all_channels():
-        if channel.type == discord.ChannelType.text:
-            if channel.name == "autobrad-flood":
+            elif channel.name == "autobrad-flood":
                 flood_channel = channel
 
     await thunderstorm_channel.purge()
