@@ -17,7 +17,8 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 
 wm = WarningManager.WarningManager(NWS_API)
 
-client = discord.Client(intents=discord.Intents.default())
+intents = discord.Intents(messages=True, guilds=True)
+client = discord.Client(intents=intents)
 
 logging.basicConfig(level=logging.INFO)
 discord_logger = logging.getLogger("discord")
