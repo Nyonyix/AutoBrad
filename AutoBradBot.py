@@ -14,7 +14,7 @@ class AutoBrad(discord.Client):
         self.tornado_channel: discord.TextChannel = None
         self.flood_channel: discord.TextChannel = None
 
-        self.current_messages: set[discord.Message] = set()
+        self.current_messages: dict[Warning, discord.Message] = {}
 
         self.warning_manager = warning_manager
 
@@ -42,26 +42,40 @@ class AutoBrad(discord.Client):
     @tasks.loop(minutes=3)
     async def main_loop(self) -> None:
 
+        self.warning_manager.update()
         i = 0
+
+        messages_to_remove = []
+        for k, v in self.current_messages.items():
+            if k not in self.warning_manager.warning_set:
+                await v.delete()
+                messages_to_remove.append(k)
+
+        for m in messages_to_remove:
+            self.current_messages.pop(m)
 
         for warn in self.warning_manager.warning_set:
 
-            if i == 5:
-                await asyncio.sleep(1)
+            if warn not in self.current_messages.keys():
 
-            message: discord.Embed = self.generate_warning_embed(warn)
-            expiration_time: float = (warn.expiration_time - datetime.now(timezone.utc)).total_seconds()
+                if i == 5:
+                    await asyncio.sleep(1)
 
-            if "tornado" in warn.event_type.lower():
-                await self.publish_warning(message, self.thunderstorm_channel, expiration_time)
+                message_embed: discord.Embed = self.generate_warning_embed(warn)
+                expiration_time: float = (warn.expiration_time - datetime.now(timezone.utc)).total_seconds()
 
-            elif "thunderstorm" in warn.event_type.lower():
-                await self.publish_warning(message, self.thunderstorm_channel, expiration_time)
+                if "tornado" in warn.event_type.lower():
+                    message = await self.tornado_channel.send(embed=message_embed, delete_after=expiration_time)
 
-            elif "flood" in warn.event_type.lower():
-                await self.publish_warning(message, self.flood_channel, expiration_time)
+                elif "thunderstorm" in warn.event_type.lower():
+                    message = await self.thunderstorm_channel.send(embed=message_embed, delete_after=expiration_time)
 
-            i += 1
+                elif "flood" in warn.event_type.lower():
+                    message = await self.flood_channel.send(embed=message_embed, delete_after=expiration_time)
+
+                self.current_messages[warn] = message
+
+                i += 1
 
     def generate_warning_embed(self, warning: Warning) -> discord.Embed:
         
@@ -71,12 +85,12 @@ class AutoBrad(discord.Client):
         f"**Wind Gusts and Source:**",
         f"**Hail Size and Source:**",
         f"**Tornado Threat:**",
-        f"Expires <t:{int(warning.expiration_time.timestamp())}:R>",
+        f"**Expires** <t:{int(warning.expiration_time.timestamp())}:R>",
         ]
 
         message_content: list[str] = []
 
-        for line, i in enumerate(storm_info, 0):
+        for i, line in enumerate(storm_info):
 
             if i == 0:
                 message_content.append(f"{line} {warning.area_desc}")
@@ -86,28 +100,34 @@ class AutoBrad(discord.Client):
             
             if any(word in warning.event_type.lower() for word in ["tornado", "thunderstorm"]):
                 if i == 2:
-                    message_content.append(f"{line} {warning.wind_gust}/{warning.wind_threat}")
+                    message_content.append(f"{line} {warning.wind_gust} and is {warning.wind_threat}")
 
                 elif i == 3:
-                    message_content.append(f"{line} {warning.hail_size}/{warning.hail_threat}")
+                    message_content.append(f"{line} {warning.hail_size} and is {warning.hail_threat}")
 
+                elif i == 4:
+                    if warning.tornado_detection == None:
+                        continue
+                    else:
+                        message_content.append(f"{line} {warning.tornado_detection}")
+
+        message_content.append(storm_info[-1])
         content_string = '\n'.join(message_content)
 
         if "tornado" in warning.event_type.lower():
-            embed_colour = discord.Color.red
+            embed_colour = discord.Colour.red()
 
         elif "thunderstorm" in warning.event_type.lower():
-            embed_colour = discord.Color.yellow
+            embed_colour = discord.Colour.yellow()
 
         elif "flood" in warning.event_type.lower():
-            embed_colour = discord.Color.green
+            embed_colour = discord.Colour.green()
 
         else:
             print(f"Unsupported Warning Type: {warning.event_type}")
-            embed_colour = discord.Color.dark_grey
+            embed_colour = discord.Color.dark_grey()
 
         return discord.Embed(colour=embed_colour, title=warning.headline, description=content_string)
 
-    async def publish_warning(self, warning_message: discord.Embed, warning_channel: discord.TextChannel, expiration_time: float) -> dict:
-        
-        message = await warning_channel.send(warning_message)
+if __name__ == "__main__":
+    print("This is a lib file")

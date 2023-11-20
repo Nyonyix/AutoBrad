@@ -1,7 +1,5 @@
 from datetime import datetime, timezone
 import requests
-import logging
-import Nyon_Util
 
 class Warning:
     """
@@ -9,8 +7,6 @@ class Warning:
     """
 
     def __init__(self, data: dict) -> None:
-
-        logger = logging.getLogger(Nyon_Util.get_custom_logger_name())
         
         self._debug_raw_data = data["debug_raw_data"]
         self.id: str = data["id"]
@@ -61,8 +57,6 @@ class WarningManager:
     MONITORED_WARNING_TYPES = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning']
 
     def __init__(self, url: str = "https://api.weather.gov/alerts/active", user_agent: dict = {"User-Agent": "Name: AutoBrad, Desc: Discord Bot, Contact: quontex@hotmail.com"}) -> None:
-        
-        self.logger = logging.getLogger(Nyon_Util.get_custom_logger_name())
 
         self.api_url: str = url
         self.user_agent: str = user_agent
@@ -72,11 +66,10 @@ class WarningManager:
 
         try:
             response = requests.get(self.api_url, headers=self.user_agent)
-            self.logger.info(f"Fetching Warning Data")
-        except TimeoutError:
-            self.logger.error(f"API Timeout")
+            print(f"{datetime.now()}: Succesfully connected to API")
+        except TimeoutError as e:
+            print(f"{datetime.now()}: NWS API Timeout: {e}")
             return []
-        self.logger.info(f"Successfully fetched warning data")
         data = response.json()
         filtered_alerts = [alert for alert in data['features'] if alert['properties']['event'] in self.MONITORED_WARNING_TYPES]
 
@@ -116,9 +109,6 @@ class WarningManager:
 
         self.warning_set: set[Warning] = {Warning(self._extract_relevant_data(alert)) for alert in self._poll_warning_data()}
 
-        # expired_warnings = {warning for warning in self.warning_set if datetime.now().timestamp() - warning.expiration_time.timestamp() <= 0}
-        # self.warning_set -= expired_warnings
-
         current_warnings: set[Warning] = set()
 
         for warning in self.warning_set:
@@ -129,6 +119,19 @@ class WarningManager:
                 current_warnings.add(warning)
 
         self.warning_set = current_warnings
+
+        if len(self.warning_set) != 0:
+            warn_dict = {}
+            for warn in self.warning_set:
+                try:
+                    warn_dict[warn.event_type] += 1
+                except KeyError:
+                    warn_dict[warn.event_type] = 1
+            
+            for k, v in warn_dict.items():
+                print(f"{datetime.now()}: {k}: {v}")
+        else:
+            print(f"{datetime.now()}: No Warnings Found")
 
 if __name__ == "__main__":
     print("This is a lib file")
